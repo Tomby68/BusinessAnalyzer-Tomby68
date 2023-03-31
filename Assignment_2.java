@@ -62,7 +62,6 @@ public class Assignment_2 {
 			String line = next.readLine();
 			
 			while (line != null) {
-			//for (int i = 0; i < 10; i++) {
 				String[] s = line.split(",(?=(?:[^\\\"]*\\\"[^\\\"]*\\\")*[^\\\"]*$)");
 				Business b = new Business(s[8], s[9], s[14], s[16], s[17], s[23]);	// account num, opened date, end date, zip code, naics code, naics description, neighborhood
 				d.addB(b);
