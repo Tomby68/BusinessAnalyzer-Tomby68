@@ -1,5 +1,3 @@
-package for_assignment2;
-
 public class LinkedList<T> implements ListInterface<T> {
 	Node<T> head;
 	int size;
