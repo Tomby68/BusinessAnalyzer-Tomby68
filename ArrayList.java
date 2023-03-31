@@ -1,5 +1,3 @@
-package for_assignment2;
-
 public class ArrayList<T> implements ListInterface<T> {
 	private T[] arr;
 	private int size;
