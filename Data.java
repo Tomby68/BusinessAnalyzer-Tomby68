@@ -1,5 +1,3 @@
-package for_assignment2;
-
 public class Data {
 	int totalB;
 	int closed;
