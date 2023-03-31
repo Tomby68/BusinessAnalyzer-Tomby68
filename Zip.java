@@ -1,5 +1,3 @@
-package for_assignment2;
-
 public class Zip {
 	String zip;
 	int size;
