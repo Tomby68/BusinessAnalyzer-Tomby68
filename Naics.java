@@ -1,5 +1,3 @@
-package for_assignment2;
-
 public class Naics {
 	String naics;
 	int size;
