@@ -1,5 +1,3 @@
-package for_assignment2;
-
 public interface ListInterface<T> {
 	public int size();
 	public T remove(int pos) throws Exception;
