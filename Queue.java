@@ -1,5 +1,3 @@
-package for_assignment2;
-
 public class Queue<T> {
 	private Node<T> front;
 	private Node<T> back;
