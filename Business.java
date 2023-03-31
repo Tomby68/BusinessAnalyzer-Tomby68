@@ -1,5 +1,3 @@
-package for_assignment2;
-
 public class Business {
 	String openedDate;
 	boolean closed;
