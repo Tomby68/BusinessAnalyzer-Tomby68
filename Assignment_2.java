@@ -1,5 +1,3 @@
-package for_assignment2;
-
 /*
  * @author Thomas Sorkin
  */
