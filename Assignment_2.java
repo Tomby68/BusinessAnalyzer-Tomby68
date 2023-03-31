@@ -61,7 +61,7 @@ public class Assignment_2 {
 			
 			while (line != null) {
 				String[] s = line.split(",(?=(?:[^\\\"]*\\\"[^\\\"]*\\\")*[^\\\"]*$)");
-				Business b = new Business(s[8], s[9], s[14], s[16], s[17], s[23]);	// account num, opened date, end date, zip code, naics code, naics description, neighborhood
+				Business b = new Business(s[8], s[9], s[14], s[16], s[17], s[23]);	// opened date, end date, zip code, naics code, naics description, neighborhood
 				d.addB(b);
 				if (!b.naics.equals("")) {
 					addNaics(b, naicsList, flag);
