@@ -1,233 +1,176 @@
 /*
  * @author Thomas Sorkin
  */
-
 import java.io.*;
-import java.util.Scanner;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 
 /*
- * Assignment_2: Takes in a .csv file name and a flag as arguments. Reads in businesses from a .csv file and 
- * analyzes the data based on NAICS codes and zip codes. The codes are stored in either a linked list or an array list, based on the flag
- * Then, the program takes in certain user commands and provides a summary of either a given zip code, naics code, all businesses,
- * or prints all the commands the user has input.
+ * Email Analyzer: Takes in a file as an argument and reads through all files within the given directory. The program reads
+ * through all valid mail files and saves valid email addresses in a HashMap. The program also saves information
+ * about each valid mail file. Then, the program asks the user to input a valid email address. If the email is in
+ * the list of emails, the program prints out the number of emails that address has sent and received, as well as the
+ * number of other members in that addresses team.
  */
-public class Assignment_2 {
+public class Assignment03 {
 	public static void main(String[] args) {
-		ListInterface<Naics> naicsList = null;
-		ListInterface<Zip> zipList = null;
-		Data data = new Data();
 		
-		if (args[1].equals("AL")) {				// Check the flag
-			naicsList = new ArrayList<Naics>();
-			zipList = new ArrayList<Zip>();
-		} else if (args[1].equals("LL")) {
-			naicsList = new LinkedList<Naics>();
-			zipList = new LinkedList<Zip>();
-		} else {
-			System.out.println("Argument order: fileName flag");
-			System.exit(-1);
-		}
+		HashMap<String, TeamMember> emails = new HashMap<String, TeamMember>();
+		Data d = new Data();
+		File file = new File(args[0]);
+		listFilesinDirectory(file, emails, d);
 		
-		System.out.println("Reading file...");
-		try {
-			readFile(args[0], args[1], naicsList, zipList, data);
-		} catch (Exception e) {
-			System.out.println(e);
-		}
-		System.out.println("Done");
+		DisjointSet djs = new DisjointSet();
+		djs.createSets(emails.size());
 		
-		try {
-			userInput(naicsList, zipList, data);
-		} catch (Exception e) {
-			System.out.println(e);
-		} 
+		createTeams(emails, djs);
+		
+		takeUserInput(emails, d, djs);
 	}
 	
 	/*
-	 * readFile reads from the given file and stores the data in naicsList, zipList, and d
-	 * @param String fileName: The name of the file to read from
-	 * @param String flag: LL or AL flag
-	 * @param ListInterface<Naics> naicsList: A list to store the naics codes
-	 * @param ListInterface<Zip> zipList: A list to store the zip codes
-	 * @param Data d: An object to store the total businesses, closed businesses, and businesses open in the last year
+	 * Reads through the given file recursively.
+	 * @param f: A file
+	 * @param emails: A HashMap of email addresses
+	 * @param d: A variable of the type Data which stores useful global information about the emails
 	 */
-	public static void readFile(String fileName, String flag, ListInterface<Naics> naicsList, ListInterface<Zip> zipList, Data d) throws Exception {
+	public static void listFilesinDirectory(File f, HashMap<String, TeamMember> emails, Data d) {
+		for (File entry : f.listFiles()) {
+			if (entry.isDirectory()) {
+				listFilesinDirectory(entry, emails, d);
+			} else {
+				readFile(entry, emails, d);
+			}
+		}
+	}
+	
+	/*
+	 * Reads the given file using BufferedReader. Adds valid mail files to the emails HashMap and updates the address' 
+	 * information
+	 * @param fileName: The name of the file
+	 * @param emails: A HashMap of email addresses
+	 * @param d: A variable of the type Data which stores useful global information about the meails
+	 */
+	private static void readFile(File fileName, HashMap<String, TeamMember> emails, Data d) {
 		try {
-			Reader f = new FileReader(fileName);
-			BufferedReader next = new BufferedReader(f);
-			next.readLine();
-			
-			String line = next.readLine();
+			Reader r = new FileReader(fileName);
+			BufferedReader br = new BufferedReader(r);
+			String line = br.readLine();
+			boolean hasFrom = false;
+			boolean hasTo = false;
 			
 			while (line != null) {
-				String[] s = line.split(",(?=(?:[^\\\"]*\\\"[^\\\"]*\\\")*[^\\\"]*$)");
-				Business b = new Business(s[8], s[9], s[14], s[16], s[17], s[23]);	// opened date, end date, zip code, naics code, naics description, neighborhood
-				d.addB(b);
-				if (!b.naics.equals("")) {
-					addNaics(b, naicsList, flag);
+				String[] next = line.split(" ");
+				if (next.length > 0) {
+					if (next[0].equals("From:")) {
+						hasFrom = true;
+						String email = extractEmail(line);
+						if (email != null) {
+							TeamMember individual;
+							if (emails.get(email) == null) {
+								emails.put(email, new TeamMember(email, d.currIndex++));
+							} 
+							individual = emails.get(email);
+							line = br.readLine();
+							next = line.split(" ");
+							
+							if (next[0].equals("To:")) {
+								hasTo = true;
+								boolean moreEmails = true;
+								while (moreEmails) {
+									for (int i = 0; i < next.length; i++) {
+										email = extractEmail(next[i]);
+										if (email != null) {
+											if (emails.get(email) == null) {
+												emails.put(email, new TeamMember(email, d.currIndex++));
+											}
+											emails.get(email).received++;
+											individual.adjacency.add(email);
+										}
+									}
+									
+									if (next[next.length - 1].charAt(next[next.length - 1].length() - 1) != ',') {
+										moreEmails = false;
+									} else {
+										line = br.readLine();
+										next = line.split(" ");
+									}
+								}
+							}
+						}
+					}
 				}
-				if (!b.zip.equals("")) {
-					addZip(b, zipList, flag);
-				}
-				line = next.readLine();
+				line = br.readLine();
 			}
-			next.close();
-		} catch (IOException e) {
+			br.close();
+			if (hasFrom && hasTo) {
+				d.numEmails++;
+			}
+		} catch (Exception e) {
 			System.out.println(e);
 		}
 	}
 	
 	/*
-	 * userInput takes in user commands and prints out code summaries or a command history
-	 * @param ListInterface<Naics> naicsList: A list to store the naics codes
-	 * @param ListInterface<Zip> zipList: A list to store the zip codes
-	 * @param Data d: An object to store the total businesses, closed businesses, and businesses open in the last year
+	 * Uses regex to search for a valid email address. Taken from David in the cs slack.
+	 * @param input: The string in which to search for an email address
 	 */
-	public static void userInput(ListInterface<Naics> naicsList, ListInterface<Zip> zipList, Data d) throws Exception{
-		Scanner scnr = new Scanner(System.in);
-		String line = "";
-		Queue<String> q = new Queue<String>();
+	private static String extractEmail(String input) {
+	    Matcher matcher = Pattern.compile("([a-zA-Z0-9.-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z0-9._-]+)").matcher(input);
+	    if (matcher.find()) {
+	        return matcher.group(1);
+	    }
+	    return null;
+	}
+	
+	/*
+	 * Using a disjoint set, unions any email addresses that send to each other.
+	 * @param emails: A HashMap of email addresses
+	 * @param djs: A disjoint set storing email addresses
+	 */
+	public static void createTeams(HashMap<String, TeamMember> emails, DisjointSet djs) {
+		Set<String> set = emails.keySet();
 		
-		while (!line.toLowerCase().equals("quit")) {
-			System.out.println("Please enter one of the following commands: ");
-			System.out.println("Zip [zip code] Summary: Provides a summary of the given zip code");
-			System.out.println("NAICS [naics code] Summary: Provides a summary of the given NAICS code");
-			System.out.println("Summary: Provides a summary of all businesses");
-			System.out.println("History: Provides the command history");
-			System.out.println("Quit: Exits the program");
-			line = scnr.nextLine();
-			String[] input = line.split(" ");
-			boolean invalid = false;
-			
-			if (input[0].equals("Zip")) {
-				zipSum(zipList, input[1]);
-			} else if (input[0].equals("NAICS")) {
-				naicsSum(naicsList, input[1]);
-			} else if (input[0].equals("Summary")) {
-				System.out.println("Total Businesses: " + d.totalB);
-				System.out.println("Closed Businesses: " + d.closed);
-				System.out.println("New Businesses in Last Year: " + d.opened);
-			} else if (input[0].equals("History")) {
-				Queue<String> tmp = new Queue<String>();
-				while (!q.empty()) {
-					String command = q.dequeue();
-					tmp.enqueue(command);
-					System.out.println(command);
+		for (String email : set) {
+			LinkedList<String> adjacency = emails.get(email).adjacency;
+			for (int i = 0; i < adjacency.size(); i++) {
+				if (djs.find(emails.get(email).index) != djs.find(emails.get(adjacency.get(i)).index)) {
+					djs.union(emails.get(email).index, emails.get(adjacency.get(i)).index);
 				}
-				q = tmp;
-			} else if (input[0].toLowerCase().equals("quit")) {
-				break;
-			} else {
-				System.out.println("Invalid input");
-				invalid = true;
 			}
-			if (!invalid) {
-				q.enqueue(line);
+		}
+	}
+	
+	/*
+	 * Takes in and evaluates user input.
+	 * @param emails: A HashMap of email addresses
+	 * @param d: A variable of the Data type which stores useful global information about the emails
+	 * @param djs: A disjoint set storing email addresses
+	 */
+	public static void takeUserInput(HashMap<String, TeamMember> emails, Data d, DisjointSet djs) {
+		Scanner scnr = new Scanner(System.in);
+		System.out.println("Email address of the individual (or EXIT to quit) ");
+		String input = scnr.nextLine();
+		Object[] addresses = emails.keySet().toArray();
+		while (!input.equals("EXIT")) {
+			boolean found = false;
+			for (int i = 0; i < addresses.length; i++) {
+				if (addresses[i].equals(input)) {
+					found = true;
+					System.out.println(input + " has sent messages to " + emails.get(addresses[i]).adjacency.size() + " others");
+					System.out.println(input + " has received messages from " + emails.get(addresses[i]).received + " others");
+					System.out.println(input + " is in a team with " + djs.getTeamSize(emails.get(input).index) + " individuals" );
+				}
 			}
+			
+			if (!found) {
+				System.out.println("Email address (" + input + ") not found in the dataset");
+			}
+			System.out.println("Email address of the individual (or EXIT to quit)");
+			input = scnr.nextLine();
 		}
 		scnr.close();
-		
 	}
-	
-	/*
-	 * zipSum gives a summary of the given zip code
-	 * @param ListInterface<Zip> list: A list to store the zip codes
-	 * @param String zip: The requested zip code
-	 */
-	public static void zipSum(ListInterface<Zip> list, String zip) {
-		Iterator<Zip> iterator = list.iterator();
-		
-		while (iterator.hasNext()) {
-			Zip z = iterator.next();
-			if (z.zip.equals(zip)) {
-				System.out.println(zip + " Business Summary");
-				System.out.println("Total Businesses: " + z.size());
-				System.out.println("Business Types: " + z.types());
-				System.out.println("Neighborhoods: " + z.neighborhoods());
-				return;
-			}
-		}
-		System.out.println("Zip code " + zip + " not found");
-	}
-	
-	/*
-	 * naicsSum gives a summary of the given naics code
-	 * @param ListInterface<Naics> list: A list to store the naics codes
-	 * @param String naics: The requested naics code
-	 */
-	public static void naicsSum(ListInterface<Naics> list, String naics) {
-		Iterator<Naics> iterator = list.iterator();
-		
-		while (iterator.hasNext()) {
-			Naics n = iterator.next();
-			String[] naicsBounds = n.naics.split("-");
-			if (Integer.parseInt(naics) >= Integer.parseInt(naicsBounds[0]) && Integer.parseInt(naics) <= Integer.parseInt(naicsBounds[1])) {
-				System.out.println("Total Businesses: " + n.size());
-				System.out.println("Zip Codes: " + n.zips());
-				System.out.println("Neighborhoods: " + n.neighborhoods());
-				return;
-			}
-		}
-		System.out.println("NAICS code " + naics + " not found");
-	}
-	
-	/*
-	 * addNaics adds the naics code or codes from the business into the naics list
-	 * @param Business b: Current business
-	 * @param ListInterface<Naics> list: A list to store the naics codes
-	 * @param String flag: The AL or LL flag
-	 */
-	public static void addNaics(Business b, ListInterface<Naics> list, String flag) throws Exception {
-		String[] difNaics = b.naics.split(" ");
-		for (int i = 0; i < difNaics.length; i++) {
-			boolean added = false;
-			Iterator<Naics> iterator = list.iterator();
-			if (flag.equals("LL") && list.size() == 1) {
-				Naics tmp = iterator.next();
-				if (difNaics[i].equals(tmp.naics)) {
-					tmp.addB(b);
-					break;
-				}
-			}
-			
-			while (iterator.hasNext()) {
-				Naics tmp = iterator.next();
-				if (difNaics[i].equals(tmp.naics)) {
-					tmp.addB(b);
-					added = true;
-					break;
-				}
-			}
-			if (!added) {
-				list.add(new Naics(difNaics[i], b.zip, b.location));
-			}
-		}
-	}
-	
-	/*
-	 * addZip adds the zip code from the business into the zip list
-	 * @param Business b: Current business
-	 * @param ListInterface<Zip> list: A list to store the zip codes
-	 * @param String flag: The AL or LL flag
-	 */
-	public static void addZip(Business b, ListInterface<Zip> list, String flag) throws Exception {
-		Iterator<Zip> iterator = list.iterator();
-		if (flag.equals("LL") && list.size() == 1) {
-			Zip tmp = iterator.next();
-			if (b.zip.equals(tmp.zip)) {
-				tmp.addB(b);
-				return;
-			}
-		}
-		
-		while (iterator.hasNext()) {
-			Zip tmp = iterator.next();
-			if (b.zip.equals(tmp.zip)) {
-				tmp.addB(b);
-				return;
-			}
-		}
-		list.add(new Zip(b.zip, b.desc, b.location));
-	}
-	
 }
